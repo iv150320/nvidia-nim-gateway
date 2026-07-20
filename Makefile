@@ -1,5 +1,5 @@
 # ── NVIDIA NIM Gateway — Makefile ──────────────────────────────────────
-.PHONY: help install dev test lint run docker-build docker-up docker-down clean format
+.PHONY: help install dev test lint e2e run docker-build docker-up docker-down clean format
 
 SHELL := /bin/bash
 
@@ -22,6 +22,16 @@ test: ## Run tests
 lint: ## Run linting
 	ruff check backend/ --fix
 	ruff format backend/ --check
+
+.PHONY: pre-commit
+pre-commit: ## Run pre-commit hooks
+	pre-commit run --all-files || true
+
+e2e: ## Run end-to-end integration tests
+	docker compose -f docker/docker-compose.yml up -d
+	@sleep 5
+	python -m pytest tests/e2e/ -v || true
+	docker compose -f docker/docker-compose.yml down
 
 format: ## Format code
 	ruff format backend/

@@ -28,7 +28,10 @@ services:
       - NIM_GW_CONFIG_DIR=/app/config
       - NIM_GW_API_KEY_ENABLED=true
       # Set your NIM API key(s) via .env or docker-compose.override.yml
-      - NIM_GW_OTLP_ENDPOINT=${NIM_GW_OTLP_ENDPOINT:-}
+      - NIM_GW_OTLP_ENDPOINT=${NIM_GW_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      # Observability
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://observability-platform:4318
+      - OTEL_SERVICE_NAME=nvidia-nim-gateway
     volumes:
       - ../config:/app/config:ro
     healthcheck:
@@ -40,6 +43,7 @@ services:
     logging: *logging
     networks:
       - nim-net
+      - ai-platform
 
   # ── Prometheus (optional) ────────────────────────────────────────────
   prometheus:
@@ -102,12 +106,14 @@ services:
     restart: unless-stopped
     ports:
       - "4318:4318"  # OTLP HTTP
+      - "4317:4317"  # OTLP gRPC
     volumes:
       - ./otel-collector.yml:/etc/otel-collector.yml:ro
     command: ["--config=/etc/otel-collector.yml"]
     logging: *logging
     networks:
       - nim-net
+      - ai-platform
     profiles:
       - monitoring
 
@@ -119,3 +125,6 @@ volumes:
 networks:
   nim-net:
     driver: bridge
+  ai-platform:
+    name: ai-platform
+    external: true
