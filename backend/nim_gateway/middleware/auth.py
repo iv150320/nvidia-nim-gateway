@@ -29,7 +29,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
-        if not settings.gateway.api_key_enabled:
+        if not settings.gateway.api_key_enabled or settings.mock_mode:
             return await call_next(request)
 
         path = request.url.path.rstrip("/")

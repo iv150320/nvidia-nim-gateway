@@ -110,6 +110,10 @@ class Settings(BaseSettings):
     nim_api_key: Optional[str] = None
     nim_base_url: Optional[str] = None
 
+    # Mock mode — return canned responses without calling upstream NVIDIA NIM.
+    # Useful for local development / CI smoke tests when no API key is available.
+    mock_mode: bool = False
+
     model_config = {"env_prefix": "NIM_GW_", "case_sensitive": False}
 
     # ------------------------------------------------------------------

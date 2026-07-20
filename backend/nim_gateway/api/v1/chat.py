@@ -12,6 +12,49 @@ from pydantic import BaseModel, Field
 
 from nim_gateway.gateway.router import ModelNotFoundError, gateway_router
 from nim_gateway.middleware.caching import MemoryCache
+from nim_gateway.core.config import settings
+
+router = APIRouter(prefix="/v1", tags=["Chat Completions"])
+
+
+def _last_user_message(messages: List[ChatMessage]) -> str:
+    """Extract the most recent user message content for the mock echo."""
+    for msg in reversed(messages):
+        if msg.role == "user" and isinstance(msg.content, str):
+            return msg.content
+    return ""
+
+
+def _mock_response(model: str, messages: List[ChatMessage]) -> ChatCompletionResponse:
+    """Canned completion used when NIM_GW_MOCK_MODE=1 (no upstream call)."""
+    prompt = _last_user_message(messages)
+    reply = (
+        f"[MOCK] Enterprise AI Platform gateway received your request. "
+        f"Echo of last user message: {prompt!r}"
+    )
+    return ChatCompletionResponse(
+        id="mock-cmpl-" + str(abs(hash(prompt)) % 10**8),
+        created=int(__import__("time").time()),
+        model=model,
+        choices=[ChatCompletionChoice(message=ChatMessage(role="assistant", content=reply))],
+        usage=UsageInfo(prompt_tokens=len(prompt.split()), completion_tokens=len(reply.split()), total_tokens=0),
+    )
+
+
+async def _mock_stream(model: str, messages: List[ChatMessage]):
+    """SSE mock stream."""
+    reply = _mock_response(model, messages).choices[0].message.content
+    for token in reply.split(" "):
+        chunk = {
+            "id": "mock-cmpl",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": model,
+            "choices": [{"index": 0, "delta": {"content": token + " "}, "finish_reason": None}],
+        }
+        yield json.dumps(chunk).encode()
+    yield json.dumps({"id": "mock-cmpl", "choices": [{"delta": {}, "finish_reason": "stop"}]}).encode()
+
 
 router = APIRouter(prefix="/v1", tags=["Chat Completions"])
 
@@ -80,6 +123,19 @@ async def chat_completions(
     """
     payload = body.model_dump(exclude_none=True)
     payload.pop("stream", None)
+
+    if settings.mock_mode:
+        if body.stream:
+            return StreamingResponse(
+                _mock_stream(body.model, body.messages),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                },
+            )
+        return _mock_response(body.model, body.messages)
 
     if body.stream:
         return StreamingResponse(
