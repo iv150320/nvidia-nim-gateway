@@ -127,12 +127,16 @@ class CachingMiddleware(BaseHTTPMiddleware):
 
         # Streaming responses have no inspectable body — never cache them
         if isinstance(response, StreamingResponse):
+            logger.debug("Caching skipped: StreamingResponse for {}", request.url.path)
             return response
+
+        logger.debug("Caching response type={} for {}", type(response).__name__, request.url.path)
 
         if 200 <= response.status_code < 300:
             try:
-                _cache.set(key, json.loads(response.body))
-            except (json.JSONDecodeError, TypeError):
+                if hasattr(response, "body"):
+                    _cache.set(key, json.loads(response.body))
+            except (json.JSONDecodeError, TypeError, AttributeError):
                 pass
 
         return response
