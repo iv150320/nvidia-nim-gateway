@@ -41,6 +41,53 @@ class EmbeddingRequest(BaseModel):
     user: Optional[str] = None
 
 
+class RerankRequest(BaseModel):
+    model: str
+    query: str
+    passages: List[dict]
+    top_n: Optional[int] = None
+    truncate: Optional[str] = None
+
+
+@router.post("/reranking")
+async def reranking(
+    request: Request,
+    body: RerankRequest,
+):
+    """NVIDIA NIM-compatible Reranking endpoint. Mocked when NIM_GW_MOCK_MODE=1."""
+    if settings.mock_mode:
+        top_n = body.top_n or len(body.passages)
+        # Deterministic ranking: prefer passages that share tokens with the query
+        query_tokens = set(body.query.lower().split())
+        ranked = []
+        for i, p in enumerate(body.passages):
+            text = (p.get("text") or "").lower()
+            overlap = len(query_tokens & set(text.split()))
+            ranked.append({
+                "index": i,
+                "score": round(overlap / max(len(query_tokens), 1), 4),
+                "text": p.get("text", ""),
+            })
+        ranked.sort(key=lambda x: x["score"], reverse=True)
+        return {"rankings": ranked[:top_n]}
+
+    payload = body.model_dump(exclude_none=True)
+    try:
+        result = await gateway_router.route(
+            model=body.model,
+            endpoint_type="reranking",
+            payload=payload,
+            stream=False,
+        )
+    except ModelNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.error("Reranking failed: {}", exc)
+        raise HTTPException(status_code=502, detail=f"Upstream error: {exc}")
+
+    return result
+
+
 @router.post("/embeddings")
 async def embeddings(
     request: Request,
