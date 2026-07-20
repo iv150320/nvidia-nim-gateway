@@ -1,0 +1,121 @@
+# ── NVIDIA NIM Gateway — Docker Compose ────────────────────────────────
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml up -d
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up -d
+
+version: "3.9"
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ── Gateway ──────────────────────────────────────────────────────────
+  gateway:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: nvidia-nim-gateway:ft1
+    container_name: nvidia-nim-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - NIM_GW_LOG_LEVEL=INFO
+      - NIM_GW_CONFIG_DIR=/app/config
+      - NIM_GW_API_KEY_ENABLED=true
+      # Set your NIM API key(s) via .env or docker-compose.override.yml
+      - NIM_GW_OTLP_ENDPOINT=${NIM_GW_OTLP_ENDPOINT:-}
+    volumes:
+      - ../config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *logging
+    networks:
+      - nim-net
+
+  # ── Prometheus (optional) ────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: nim-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    logging: *logging
+    networks:
+      - nim-net
+    profiles:
+      - monitoring
+
+  # ── Grafana (optional) ───────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: nim-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana-data:/var/lib/grafana
+    logging: *logging
+    networks:
+      - nim-net
+    profiles:
+      - monitoring
+
+  # ── Redis (optional — for production caching / rate limiting) ────────
+  redis:
+    image: redis:7-alpine
+    container_name: nim-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    logging: *logging
+    networks:
+      - nim-net
+    profiles:
+      - cache
+
+  # ── OpenTelemetry Collector (optional) ───────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    container_name: nim-otel-collector
+    restart: unless-stopped
+    ports:
+      - "4318:4318"  # OTLP HTTP
+    volumes:
+      - ./otel-collector.yml:/etc/otel-collector.yml:ro
+    command: ["--config=/etc/otel-collector.yml"]
+    logging: *logging
+    networks:
+      - nim-net
+    profiles:
+      - monitoring
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  redis-data:
+
+networks:
+  nim-net:
+    driver: bridge

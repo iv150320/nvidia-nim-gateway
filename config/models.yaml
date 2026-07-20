@@ -1,0 +1,96 @@
+# ── NVIDIA NIM Gateway — Provider & Model Configuration ───────────────
+#
+# Define upstream NIM endpoints and map public model names to provider chains.
+#
+# Fallback: if the first provider fails, the gateway tries the next in the list.
+# If multiple providers share a name and weight, they are load-balanced.
+
+providers:
+  # ── Primary NIM endpoint ────────────────────────────────────────────
+  nim-primary:
+    name: "nim-primary"
+    base_url: "https://integrate.api.nvidia.com"
+    api_key: "${NVIDIA_NIM_API_KEY}"  # Set via environment variable
+    weight: 3
+    timeout: 120.0
+    max_retries: 2
+    enabled: true
+
+  # ── Fallback NIM endpoint ───────────────────────────────────────────
+  nim-fallback:
+    name: "nim-fallback"
+    base_url: "https://ai.api.nvidia.com"
+    api_key: "${NVIDIA_NIM_API_KEY}"
+    weight: 1
+    timeout: 120.0
+    max_retries: 1
+    enabled: true
+
+  # ── Local NIM (self-hosted) ─────────────────────────────────────────
+  # Uncomment to use a local NIM microservice
+  # nim-local:
+  #   name: "nim-local"
+  #   base_url: "http://localhost:8000"
+  #   api_key: ""
+  #   weight: 2
+  #   timeout: 60.0
+  #   enabled: true
+
+# ── Route definitions ─────────────────────────────────────────────────
+# Public model name → ordered list of providers (fallback chain)
+routes:
+  # Llama 3.1 series
+  "meta/llama-3.1-405b-instruct":
+    providers: ["nim-primary", "nim-fallback"]
+    max_tokens: 16384
+    rpm_limit: 60
+
+  "meta/llama-3.1-70b-instruct":
+    providers: ["nim-primary", "nim-fallback"]
+    max_tokens: 16384
+    rpm_limit: 120
+
+  "meta/llama-3.1-8b-instruct":
+    providers: ["nim-primary"]
+    max_tokens: 16384
+    rpm_limit: 300
+
+  # Llama 3 series
+  "meta/llama3-70b-instruct":
+    providers: ["nim-primary", "nim-fallback"]
+    max_tokens: 8192
+    rpm_limit: 120
+
+  "meta/llama3-8b-instruct":
+    providers: ["nim-primary"]
+    max_tokens: 8192
+    rpm_limit: 300
+
+  # Mixtral
+  "mistralai/mixtral-8x22b-instruct-v0.1":
+    providers: ["nim-primary", "nim-fallback"]
+    max_tokens: 65536
+    rpm_limit: 60
+
+  "mistralai/mixtral-8x7b-instruct-v0.1":
+    providers: ["nim-primary"]
+    max_tokens: 32768
+    rpm_limit: 120
+
+  # Nemotron
+  "nvidia/nemotron-4-340b-instruct":
+    providers: ["nim-primary"]
+    max_tokens: 4096
+    rpm_limit: 30
+
+  # Embedding models
+  "nvidia/nv-embed-qa-4":
+    providers: ["nim-primary"]
+    max_tokens: 512
+    rpm_limit: 300
+
+  # Code models
+  "codellama/codellama-70b-instruct":
+    providers: ["nim-primary", "nim-fallback"]
+    max_tokens: 16384
+    rpm_limit: 60

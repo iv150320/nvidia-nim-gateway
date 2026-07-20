@@ -1,0 +1,33 @@
+# ── NVIDIA NIM Gateway — Gateway Configuration ─────────────────────────
+version: "1.0"
+
+# Server
+host: "0.0.0.0"
+port: 8000
+log_level: "INFO"
+
+# ── API Key Authentication ────────────────────────────────────────────
+api_key_enabled: true
+api_keys: {}  # Add keys: <api-key>: <label>
+  # Generate with: make gen-key
+
+# ── Rate Limiting ─────────────────────────────────────────────────────
+rate_limit_enabled: true
+rate_limit_default: 60  # requests per minute per client
+
+# ── Caching ───────────────────────────────────────────────────────────
+cache_enabled: true
+cache_ttl_seconds: 300
+cache_max_size: 512
+
+# ── Circuit Breaker ───────────────────────────────────────────────────
+circuit_breaker_failure_threshold: 5
+circuit_breaker_recovery_timeout: 30
+circuit_breaker_half_open_max_calls: 3
+
+# ── OpenTelemetry ─────────────────────────────────────────────────────
+# otlp_endpoint: "http://otel-collector:4318/v1/traces"
+service_name: "nvidia-nim-gateway"
+
+# ── Prometheus ────────────────────────────────────────────────────────
+metrics_enabled: true
