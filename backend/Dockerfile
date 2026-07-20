@@ -6,7 +6,7 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────
@@ -27,11 +27,11 @@ RUN addgroup --system --gid 1001 nim && \
 WORKDIR /app
 
 # Copy application code
-COPY nim_gateway/ /app/nim_gateway/
+COPY backend/nim_gateway/ /app/nim_gateway/
 COPY config/ /app/config/
 
 # Copy config defaults
-COPY requirements.txt /app/
+COPY backend/requirements.txt /app/
 
 # Ownership
 RUN chown -R nim:nim /app
