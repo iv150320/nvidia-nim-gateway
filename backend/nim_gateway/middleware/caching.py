@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 from fastapi import Request
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import StreamingResponse
 from starlette.types import ASGIApp
 
 from nim_gateway.core.config import settings
@@ -123,6 +124,10 @@ class CachingMiddleware(BaseHTTPMiddleware):
             return JSONResponse(content=cached)
 
         response = await call_next(request)
+
+        # Streaming responses have no inspectable body — never cache them
+        if isinstance(response, StreamingResponse):
+            return response
 
         if 200 <= response.status_code < 300:
             try:
